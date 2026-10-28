@@ -1,0 +1,19 @@
+{
+  "name": "chatappserverside",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev" : "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "ioredis": "^6.0.0",
+    "mysql2": "^3.24.6",
+    "ws": "^8.22.0"
+  }
+}
