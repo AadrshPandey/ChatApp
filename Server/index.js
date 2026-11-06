@@ -4,14 +4,26 @@ import { WebSocketServer } from "ws"
 import app from "./app.js"
 import pool from "./config/mysql.js"
 import redis from "./config/redis.js"
+import setUpSocketManager from "./sockets/socketManager.js"
+import verifySocketWebToken from "./middleware/wsAuth.js"
 
 const port = process.env.PORT || 3000
 const server = http.createServer(app)
-const wsServer = new WebSocketServer({ server })
+const wsServer = new WebSocketServer({ noServer: true })
 
-wsServer.on('connection', () => {
-  console.log('Client Connected...')
+server.on('upgrade', (req, socket, head) => {
+  const userId = verifySocketWebToken(req, socket)
+  if (!userId) return;
+
+  req.userId = userId; // Attach the userId to the request object for later use in the WebSocket connection.
+
+  wsServer.handleUpgrade(req, socket, head, (ws) => {
+    wsServer.emit('connection', ws, req)
+  })
+  console.log(`User ${userId} connected to WebSocket server`);
 })
+
+setUpSocketManager(wsServer);
 
 server.on('error', (err) => {
   console.error('Server error: ', err)

@@ -1,5 +1,5 @@
 import redis from '../config/redis.js';
-import pool from '../config/db.js';
+import pool from '../config/mysql.js';
 
 
 // Map to keep track of active WebSocket connections of specific servers. 
