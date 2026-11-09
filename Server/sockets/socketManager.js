@@ -15,11 +15,15 @@ redisSubscriber.subscribe(`server_channel_${SERVER_ID}`); // Subscribe to the ch
 // Listen for messages from other servers and forward them to the appropriate WebSocket connection if it exists. 
 // Server to Server communication is handled through Redis pub/sub, while server to client communication is handled through WebSocket connections(activeSockets).
 redisSubscriber.on('message', async(channel, message) => {
-    const payload = JSON.parse(message);
-    const targetSocket = activeSockets.get(payload.receiverId);
+    try {
+        const payload = JSON.parse(message);
+        const targetSocket = activeSockets.get(payload.receiverId);
 
-    if(targetSocket && targetSocket.readyState === 1) {
-        targetSocket.send(JSON.stringify(payload));
+        if(targetSocket && targetSocket.readyState === 1) {
+            targetSocket.send(JSON.stringify(payload));
+        }
+    } catch (error) {
+        console.error('Error forwarding Redis message:', error);
     }
 });
 
@@ -31,50 +35,67 @@ function heartbeat(){
 }
 
 function setUpSocketManager(wsServer) {
-    wsServer.on('connection', (ws) => { 
+    wsServer.on('connection', (ws, req) => {
         ws.isAlive = true; // Initialize the isAlive property to true when a new WebSocket connection is established.
         ws.on('pong', heartbeat); // Listen for pong responses to tell that the connection is alive.
 
-        let currentUserId = null;
+        const currentUserId = req.userId;
+        let registrationReady = false;
+        activeSockets.set(currentUserId, ws);
 
-        // rawBuffer = {type: 'init', userId: 'user1'} or 
-        // {type: 'message', receiverId: 'user2', encryptedContent: 'encrypted_message'}
+        const registerConnection = async () => {
+            try {
+                await redis.set(`socket:${currentUserId}`, SERVER_ID);
+                const [rows] = await pool.execute(
+                    'SELECT id, sender_id, encrypted_content FROM offline_messages WHERE receiver_id = ?',
+                    [currentUserId]
+                );
+
+                if(rows.length > 0 && ws.readyState === 1){
+                    ws.send(JSON.stringify({type: 'offline_messages', messages: rows}));
+
+                    const messageIds = rows.map((row) => row.id);
+                    await pool.query(
+                        'DELETE FROM offline_messages WHERE id IN (?)',
+                        [messageIds]
+                    );
+                }
+                registrationReady = true;
+            } catch (error) {
+                console.error('Error initializing WebSocket connection:', error);
+                ws.close(1011, 'Unable to initialize connection');
+            }
+        };
+
+        const registrationPromise = registerConnection();
+
         ws.on('message', async(rawBuffer) => {
             try{
+                await registrationPromise;
+                if (!registrationReady || ws.readyState !== 1) return;
+
                 const payload = JSON.parse(rawBuffer.toString());
-
-                // Register the userId of the connected client and store the WebSocket connection in the activeSockets map.
-                // Also, sends the offline messages to the client if there are any and deletes them from the database.
-                if(payload.type === 'init'){
-                    currentUserId = payload.userId;
-                    activeSockets.set(currentUserId, ws);
-
-                    await redis.set(`socket:${currentUserId}`, SERVER_ID);
-                    console.log(`User ${currentUserId} connected to server ${SERVER_ID}`);
-
-                    const [rows] = await pool.execute(
-                        'SELECT id, sender_id, encrypted_content FROM offline_messages WHERE receiver_id = ?',
-                        [currentUserId]
-                    );
-
-                    if(rows.length > 0){
-                        ws.send(JSON.stringify({type : 'offline_messages', messages : rows}));
-
-                        const messageIds = rows.map(row => row.id);
-                        await pool.query(
-                            'DELETE FROM offline_messages WHERE id IN (?)',
-                            [messageIds]
-                        );
-                    }
-                    return;
-                }
 
                 // Handle incoming messages from clients.
                 // If the receiver is connected to the same server, send the message directly through WebSocket.
                 // If the receiver is connected to a different server, publish the message to that server's Redis channel.
                 // If the receiver is not connected to any server, store the message in the database for later retrieval.
-                if(payload.type === 'message'){
+                if(payload.type === 'message' && currentUserId){
                     const {receiverId, encryptedContent} = payload;
+                    if (typeof receiverId !== 'string'
+                        || !receiverId
+                        || receiverId === currentUserId
+                        || typeof encryptedContent !== 'string'
+                        || !encryptedContent.trim()) {
+                        return;
+                    }
+
+                    const outgoingPayload = {
+                        type: 'message',
+                        senderId: currentUserId,
+                        receiverId,
+                        encryptedContent,
+                    };
 
                     const targetServerId = await redis.get(`socket:${receiverId}`);
 
@@ -83,11 +104,11 @@ function setUpSocketManager(wsServer) {
                             const targetSocket = activeSockets.get(receiverId);
 
                             if(targetSocket){
-                                targetSocket.send(JSON.stringify(payload));
+                                targetSocket.send(JSON.stringify(outgoingPayload));
                             }
                         }
                         else{
-                            await redis.publish(`server_channel_${targetServerId}`, JSON.stringify(payload));
+                            await redis.publish(`server_channel_${targetServerId}`, JSON.stringify(outgoingPayload));
                         }
                     }
                     else{
@@ -105,9 +126,16 @@ function setUpSocketManager(wsServer) {
         
         // Handle WebSocket connection closure. Remove the userId from the activeSockets map and delete the corresponding Redis key.
         ws.on('close', async() => {
-            if(currentUserId){
+            if(currentUserId && activeSockets.get(currentUserId) === ws){
                 activeSockets.delete(currentUserId);
-                await redis.del(`socket:${currentUserId}`);
+                try {
+                    const socketServer = await redis.get(`socket:${currentUserId}`);
+                    if (socketServer === SERVER_ID) {
+                        await redis.del(`socket:${currentUserId}`);
+                    }
+                } catch (error) {
+                    console.error('Error cleaning up WebSocket connection:', error);
+                }
                 console.log(`User ${currentUserId} disconnected from server ${SERVER_ID}`);
             }
         });

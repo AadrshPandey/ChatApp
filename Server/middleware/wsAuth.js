@@ -2,14 +2,17 @@ import jwt from "jsonwebtoken";
 
 const verifySocketWebToken = (req, socket) => {
     const cookieHeader = req.headers.cookie;
+    const token = cookieHeader
+        ?.split(";")
+        .map((cookie) => cookie.trim())
+        .find((cookie) => cookie.startsWith("chat_token="))
+        ?.slice("chat_token=".length);
 
-    if(!cookieHeader || !cookieHeader.includes("chat_token")) {
+    if(!token) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return null;
     }
-
-    const token = cookieHeader.split('chat_token=')[1].split(';')[0];
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
