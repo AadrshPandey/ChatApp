@@ -10,7 +10,7 @@ const chatHistory = async (req, res) => {
         }
 
         const [messages] = await pool.execute(
-            `SELECT id, sender_id, receiver_id, encrypted_content, created_at 
+            `SELECT id, sender_id, receiver_id, receiver_encrypted_content, sender_encrypted_content, created_at 
              FROM messages 
              WHERE (sender_id = ? AND receiver_id = ?) 
                 OR (sender_id = ? AND receiver_id = ?) 

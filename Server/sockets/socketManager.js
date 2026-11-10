@@ -47,7 +47,7 @@ function setUpSocketManager(wsServer) {
             try {
                 await redis.set(`socket:${currentUserId}`, SERVER_ID);
                 const [rows] = await pool.execute(
-                    'SELECT id, sender_id, encrypted_content FROM offline_messages WHERE receiver_id = ?',
+                    'SELECT id, sender_id, receiver_encrypted_content, sender_encrypted_content FROM offline_messages WHERE receiver_id = ?',
                     [currentUserId]
                 );
 
@@ -81,12 +81,14 @@ function setUpSocketManager(wsServer) {
                 // If the receiver is connected to a different server, publish the message to that server's Redis channel.
                 // If the receiver is not connected to any server, store the message in the database for later retrieval.
                 if(payload.type === 'message' && currentUserId){
-                    const {receiverId, encryptedContent} = payload;
+                    const {receiverId, receiverEncryptedContent, senderEncryptedContent} = payload;
                     if (typeof receiverId !== 'string'
                         || !receiverId
                         || receiverId === currentUserId
-                        || typeof encryptedContent !== 'string'
-                        || !encryptedContent.trim()) {
+                        || typeof receiverEncryptedContent !== 'string'
+                        || !receiverEncryptedContent.trim()
+                        || typeof senderEncryptedContent !== 'string'
+                        || !senderEncryptedContent.trim()) {
                         return;
                     }
 
@@ -94,18 +96,19 @@ function setUpSocketManager(wsServer) {
                         type: 'message',
                         senderId: currentUserId,
                         receiverId,
-                        encryptedContent,
+                        receiverEncryptedContent,
+                        senderEncryptedContent,
                     };
 
 
                     await pool.execute(
-                        'INSERT INTO messages (sender_id, receiver_id, encrypted_content) VALUES (?, ?, ?)',
-                        [currentUserId, receiverId, encryptedContent]
+                        'INSERT INTO messages (sender_id, receiver_id, receiver_encrypted_content, sender_encrypted_content) VALUES (?, ?, ?, ?)',
+                        [currentUserId, receiverId, receiverEncryptedContent, senderEncryptedContent]
                     );
 
-                    console.log(`User ${currentUserId} sent a message to user ${receiverId}: ${encryptedContent}`);
+                    console.log(`User ${currentUserId} sent a message to user ${receiverId}`);
 
-                    
+
                     // Check if the receiver is connected to any server by looking up their server ID in Redis.
                     // If the receiver is connected to the same server, send the message directly through WebSocket.
                     // If the receiver is connected to a different server, publish the message to that server's Redis channel.
@@ -127,8 +130,8 @@ function setUpSocketManager(wsServer) {
                     }
                     else{
                         await pool.execute(
-                            'INSERT INTO offline_messages (sender_id, receiver_id, encrypted_content) VALUES (?, ?, ?)',
-                            [currentUserId, receiverId, encryptedContent]
+                            'INSERT INTO offline_messages (sender_id, receiver_id, receiver_encrypted_content, sender_encrypted_content) VALUES (?, ?, ?, ?)',
+                            [currentUserId, receiverId, receiverEncryptedContent, senderEncryptedContent]
                         );
                     }
                 }
