@@ -1,16 +1,19 @@
-# React + Vite
+# ChatApp client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Run locally
 
-Currently, two official plugins are available:
+1. Start MySQL and Redis using the server's Docker Compose setup.
+2. Configure `Server/.env` using `Server/.env.example`, including a strong `JWT_SECRET` and a database password matching your MySQL setup.
+3. From `Server`, run `npm install` and `npm run dev`.
+4. Configure `Client/.env` using `.env.example` if the API is not at `http://localhost:3000`.
+5. From `Client`, run `npm install` and `npm run dev`. Optional local URL overrides are in `.env.example`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The default Vite origin is `http://localhost:5173`, which is the backend's default allowed client origin. If you change the frontend origin, update `CLIENT_ORIGIN` in `Server/.env` to match it exactly. For multiple frontend origins, separate them with commas.
 
-## React Compiler
+The browser keeps the JWT in the backend's HttpOnly cookie. The client restores the session through `GET /api/auth/me`; it does not store or read the token. The WebSocket handshake reuses that cookie. For deployments where the frontend and backend are on different sites, configure `COOKIE_SAME_SITE=none` and serve both over HTTPS.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Chat messages are sent in the backend's `encryptedContent` field. The current text input does not encrypt message content; add an agreed client-side encryption and key-distribution protocol before using it for private messages.
 
-## Expanding the ESLint configuration
+## Production
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Build the client from the repository root with `npm run build --prefix Client`, without setting local `VITE_API_BASE_URL` or `VITE_WS_URL` overrides. Then, in PowerShell from `Server`, run `$env:NODE_ENV = "production"` followed by `npm start`. The Express server serves `Client/dist` and falls back to the React app for client-side routes; the client then uses the current host for HTTP and WebSocket connections. Configure `CLIENT_ORIGIN` to the exact public frontend origin for both API CORS and WebSocket origin checks.
