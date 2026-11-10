@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import { allowedOrigins } from "./config/origins.js";
+import messageRoutes from "./routes/messageRoutes.js";
 
 const app = express();
 
@@ -24,5 +25,6 @@ if (process.env.NODE_ENV !== "production") {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/messages', messageRoutes);
 
 export default app;

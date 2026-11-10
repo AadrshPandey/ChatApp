@@ -97,6 +97,20 @@ function setUpSocketManager(wsServer) {
                         encryptedContent,
                     };
 
+
+                    await pool.execute(
+                        'INSERT INTO messages (sender_id, receiver_id, encrypted_content) VALUES (?, ?, ?)',
+                        [currentUserId, receiverId, encryptedContent]
+                    );
+
+                    console.log(`User ${currentUserId} sent a message to user ${receiverId}: ${encryptedContent}`);
+
+                    
+                    // Check if the receiver is connected to any server by looking up their server ID in Redis.
+                    // If the receiver is connected to the same server, send the message directly through WebSocket.
+                    // If the receiver is connected to a different server, publish the message to that server's Redis channel.
+                    // If the receiver is not connected to any server, store the message in the database for later retrieval.
+
                     const targetServerId = await redis.get(`socket:${receiverId}`);
 
                     if(targetServerId){
