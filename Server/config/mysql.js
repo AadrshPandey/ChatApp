@@ -9,6 +9,7 @@ const pool = mysql.createPool({
   user: process.env.DB_USER || 'appuser',
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'chatapp',
+  ssl: process.env.DB_SSL === 'true' ? {} : undefined,
 });
 
 export default pool;
