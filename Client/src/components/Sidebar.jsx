@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { LogOut, MessageCircle, Search } from 'lucide-react'
 import { useAuth, api } from '../context/AuthContext.jsx'
 
 function getErrorMessage(error) {
@@ -57,10 +58,14 @@ export default function Sidebar({ activeUser, onSelectUser }) {
   }, [query])
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-r border-slate-800 bg-slate-900 md:w-80">
+    <aside className={`w-full shrink-0 flex-col border-r border-slate-800 bg-slate-900 md:flex md:w-80 ${
+      activeUser ? 'hidden' : 'flex'
+    }`}>
       <header className="flex items-center justify-between border-b border-slate-800 px-5 py-5">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-xl bg-violet-500/15 text-lg text-violet-300">✦</span>
+          <span className="grid size-10 place-items-center rounded-xl bg-violet-500/15 text-violet-300">
+            <MessageCircle aria-hidden="true" size={19} />
+          </span>
           <div>
             <p className="font-semibold text-white">Gather</p>
             <p className="max-w-40 truncate text-xs text-slate-400">{user?.username}</p>
@@ -68,19 +73,20 @@ export default function Sidebar({ activeUser, onSelectUser }) {
         </div>
         <button
           aria-label="Sign out"
-          className="rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:opacity-50"
           disabled={signingOut}
           onClick={handleSignOut}
           type="button"
         >
-          {signingOut ? 'Signing out…' : 'Sign out'}
+          <LogOut aria-hidden="true" size={15} />
+          <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
         </button>
       </header>
 
       <div className="border-b border-slate-800 p-5">
         <h1 className="text-lg font-semibold text-white">Messages</h1>
         <label className="mt-4 flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 focus-within:border-violet-400">
-          <span aria-hidden="true" className="text-slate-500">⌕</span>
+          <Search aria-hidden="true" className="shrink-0 text-slate-500" size={17} />
           <input
             className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
             onChange={(event) => {

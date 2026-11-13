@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useAuth } from './AuthContext.jsx'
 
+/* eslint react-refresh/only-export-components: off */
 
 const SOCKET_URL = import.meta.env.VITE_WS_URL
   || (import.meta.env.DEV
@@ -19,21 +20,25 @@ const SocketContext = createContext(null)
 function normalizeIncoming(payload, currentUserId) {
   if (payload.type === 'offline_messages') {
     return (payload.messages || []).map((message) => ({
-      id: message.id,
-      senderId: message.sender_id,
-      receiverId: currentUserId,
-      encryptedContent: message.encrypted_content,
-      receivedAt: Date.now(),
+      id: message.id ?? `${Date.now()}-${Math.random()}`,
+      sender_id: message.sender_id,
+      receiver_id: currentUserId,
+      receiver_encrypted_content: message.receiver_encrypted_content,
+      sender_encrypted_content: message.sender_encrypted_content,
+      created_at: message.created_at ?? new Date().toISOString(),
     }))
   }
 
   if (payload.type === 'message') {
     return [{
       id: `${Date.now()}-${Math.random()}`,
-      senderId: payload.senderId ?? payload.sender_id ?? null,
-      receiverId: payload.receiverId ?? currentUserId,
-      encryptedContent: payload.encryptedContent,
-      receivedAt: Date.now(),
+      sender_id: payload.senderId ?? payload.sender_id ?? null,
+      receiver_id: payload.receiverId ?? payload.receiver_id ?? currentUserId,
+      receiver_encrypted_content: payload.receiverEncryptedContent
+        ?? payload.receiver_encrypted_content,
+      sender_encrypted_content: payload.senderEncryptedContent
+        ?? payload.sender_encrypted_content,
+      created_at: payload.created_at ?? new Date().toISOString(),
     }]
   }
 
@@ -55,11 +60,26 @@ export function SocketProvider({ children }) {
     let stableTimer
     let attempts = 0
 
+    const scheduleReconnect = () => {
+      if (disposed) return
+      attempts += 1
+      setStatus('reconnecting')
+      const delay = Math.min(1000 * (2 ** Math.min(attempts - 1, 5)), 30000)
+      retryTimer = window.setTimeout(connect, delay)
+    }
+
     const connect = () => {
       if (disposed) return
 
       setStatus(attempts === 0 ? 'connecting' : 'reconnecting')
-      const socket = new WebSocket(SOCKET_URL)
+      let socket
+      try {
+        socket = new WebSocket(SOCKET_URL)
+      } catch (error) {
+        console.error('Unable to create the WebSocket connection:', error)
+        scheduleReconnect()
+        return
+      }
       socketRef.current = socket
 
       socket.onopen = () => {
@@ -88,12 +108,7 @@ export function SocketProvider({ children }) {
       socket.onclose = () => {
         window.clearTimeout(stableTimer)
         if (socketRef.current === socket) socketRef.current = null
-        if (disposed) return
-
-        attempts += 1
-        setStatus('reconnecting')
-        const delay = Math.min(1000 * (2 ** Math.min(attempts - 1, 5)), 30000)
-        retryTimer = window.setTimeout(connect, delay)
+        scheduleReconnect()
       }
     }
 
@@ -112,24 +127,35 @@ export function SocketProvider({ children }) {
     }
   }, [userId])
 
-  const sendMessage = useCallback((receiverId, encryptedContent) => {
+  const sendMessage = useCallback((
+    receiverId,
+    receiverEncryptedContent,
+    senderEncryptedContent,
+  ) => {
     const socket = socketRef.current
-    if (!userId || !receiverId || !encryptedContent) {
+    if (!userId || !receiverId || !receiverEncryptedContent || !senderEncryptedContent) {
       throw new Error('Choose a chat partner and enter a message.')
     }
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       throw new Error('The chat connection is not ready. Try again in a moment.')
     }
 
-    const payload = { type: 'message', receiverId, encryptedContent }
+    const payload = {
+      type: 'message',
+      receiverId,
+      receiverEncryptedContent,
+      senderEncryptedContent,
+    }
     socket.send(JSON.stringify(payload))
     setMessages((current) => [
       ...current,
       {
-        ...payload,
         id: `${Date.now()}-${Math.random()}`,
-        senderId: userId,
-        sentAt: Date.now(),
+        sender_id: userId,
+        receiver_id: receiverId,
+        receiver_encrypted_content: receiverEncryptedContent,
+        sender_encrypted_content: senderEncryptedContent,
+        created_at: new Date().toISOString(),
       },
     ])
   }, [userId])

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LockKeyhole, MessageCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 
 function getErrorMessage(error) {
@@ -11,7 +12,13 @@ function getErrorMessage(error) {
 
 export default function Auth() {
   const navigate = useNavigate()
-  const { login, register } = useAuth()
+  const {
+    login,
+    register,
+    sessionError,
+    keyRecoveryUser,
+    resetEncryptionKey,
+  } = useAuth()
   const [mode, setMode] = useState('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -33,12 +40,28 @@ export default function Auth() {
         navigate('/', { replace: true })
       } else {
         await register({ username: username.trim(), password })
-        setMode('login')
-        setPassword('')
-        setNotice('Account created. Sign in with your new credentials.')
+        navigate('/', { replace: true })
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleKeyRecovery = async () => {
+    const confirmed = window.confirm(
+      'The original private key cannot be recovered. Replacing it means old messages encrypted with the previous key will remain unreadable. Create a new encryption key?',
+    )
+    if (!confirmed) return
+
+    setError('')
+    setLoading(true)
+    try {
+      await resetEncryptionKey()
+      navigate('/', { replace: true })
+    } catch (recoveryError) {
+      setError(getErrorMessage(recoveryError))
     } finally {
       setLoading(false)
     }
@@ -49,7 +72,9 @@ export default function Auth() {
       <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/40 md:grid-cols-2">
         <section className="hidden flex-col justify-between bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-700 p-12 md:flex">
           <div className="flex items-center gap-3 font-semibold tracking-wide">
-            <span className="grid size-10 place-items-center rounded-xl bg-white/15 text-xl">✦</span>
+            <span className="grid size-10 place-items-center rounded-xl bg-white/15">
+              <MessageCircle aria-hidden="true" size={21} />
+            </span>
             <span>Gather</span>
           </div>
           <div>
@@ -66,7 +91,9 @@ export default function Auth() {
 
         <section className="p-7 sm:p-11">
           <div className="mb-8 md:hidden">
-            <span className="font-semibold tracking-wide text-violet-300">✦ Gather</span>
+            <span className="flex items-center gap-2 font-semibold tracking-wide text-violet-300">
+              <MessageCircle aria-hidden="true" size={18} /> Gather
+            </span>
           </div>
           <p className="text-sm font-medium text-violet-300">{isLogin ? 'WELCOME BACK' : 'GET STARTED'}</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
@@ -75,6 +102,10 @@ export default function Auth() {
           <p className="mt-2 text-sm text-slate-400">
             {isLogin ? 'Your conversations are waiting for you.' : 'It only takes a moment to get connected.'}
           </p>
+          <div className="mt-5 flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-3 text-xs leading-5 text-emerald-200">
+            <LockKeyhole aria-hidden="true" className="mt-0.5 shrink-0" size={15} />
+            <p>Messages are encrypted in your browser. Your private key stays in this browser.</p>
+          </div>
 
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <label className="block text-sm font-medium text-slate-300">
@@ -104,7 +135,27 @@ export default function Auth() {
               />
             </label>
 
-            {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p>}
+            {(error || sessionError) && (
+              <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+                {error || sessionError}
+              </p>
+            )}
+            {keyRecoveryUser && (
+              <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <p className="text-sm leading-5 text-amber-200">
+                  Your old private key is missing. You can create a new key to continue, but
+                  messages encrypted with the old key cannot be recovered.
+                </p>
+                <button
+                  className="w-full rounded-lg border border-amber-400/40 px-4 py-2.5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/10 disabled:opacity-60"
+                  disabled={loading}
+                  onClick={handleKeyRecovery}
+                  type="button"
+                >
+                  Create a new encryption key
+                </button>
+              </div>
+            )}
             {notice && <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{notice}</p>}
 
             <button
