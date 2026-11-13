@@ -119,7 +119,7 @@ export default function Sidebar({ activeUser, onSelectUser }) {
               onClick={() => onSelectUser(result)}
               type="button"
             >
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 font-semibold text-white">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-linear-to-br from-indigo-500 to-fuchsia-500 font-semibold text-white">
                 {result.username?.slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0">

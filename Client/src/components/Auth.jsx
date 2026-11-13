@@ -70,7 +70,7 @@ export default function Auth() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/40 md:grid-cols-2">
-        <section className="hidden flex-col justify-between bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-700 p-12 md:flex">
+        <section className="hidden flex-col justify-between bg-linear-to-br from-indigo-600 via-violet-600 to-fuchsia-700 p-12 md:flex">
           <div className="flex items-center gap-3 font-semibold tracking-wide">
             <span className="grid size-10 place-items-center rounded-xl bg-white/15">
               <MessageCircle aria-hidden="true" size={21} />
